@@ -1,0 +1,1060 @@
+//======S=A=M=P=B=U=I=L=D=S========================S=A=M=P=B=U=I=L=D=S==========
+//======S=A=M=P=B=U=I=L=D=S========================S=A=M=P=B=U=I=L=D=S==========
+//======S=A=M=P=B=U=I=L=D=S========================S=A=M=P=B=U=I=L=D=S==========
+
+#include <a_samp>
+#include <core>
+#include <float>
+#include <streamer>
+#include <Dof2>
+#include "../include/gl_common.inc"
+
+#define DIALOG_LOGAR 1
+#define DIALOG_REGISTRO 2
+
+enum pInfo
+{
+	pSkin,
+	pSenha,
+	pDinheiro,
+	pKills,
+    pDeaths,
+	pScore,
+	pAdmin,
+	pSkill
+};
+new PlayerInfo[MAX_PLAYERS][pInfo];
+
+new Erro[MAX_PLAYERS];
+new Text:Textdraw0;
+new Text:Textdraw1;
+new Text:Textdraw2;
+new Text:Textdraw3[MAX_PLAYERS];
+new Text:Textdraw4[MAX_PLAYERS];
+new Float:Velocidade [3];
+new Text:Textdraw5;
+new Text:Textdraw6[MAX_PLAYERS];
+new Text:Textdraw7[MAX_PLAYERS];
+new Text:Textdraw8[MAX_PLAYERS];
+new Text:Textdraw9[MAX_PLAYERS];
+new Text:Textdraw10;
+new Text:vida[MAX_PLAYERS];
+new Text:colete[MAX_PLAYERS];
+new bool: sbkit[MAX_PLAYERS];
+new Text:txtTimeDisp;
+new hour, minute;
+new timestr[32];
+new total_vehicles_from_files=0;
+
+new Float:spawnplayer[3][3] =
+{
+{-1968.0274,137.9737,27.6875},
+{-2026.3228,138.5818,28.8359},
+{-2274.7805,197.6407,35.1641}
+};
+//======================//
+forward Speed(playerid);
+forward updatetext(playerid);
+forward UpdateTime();
+forward SkipSpawn(playerid);
+//======================//
+stock ReturnPlayer(playerid)
+{
+	new name[MAX_PLAYER_NAME];
+	GetPlayerName(playerid,name,MAX_PLAYER_NAME);
+	return name;
+}
+stock GetSpeed(playerid , mode = 1)
+{
+    GetVehicleVelocity (GetPlayerVehicleID (playerid) , Velocidade [0] , Velocidade [1] , Velocidade [2]) ;
+    return IsPlayerInAnyVehicle (playerid) ? floatround (((floatsqroot (((Velocidade [0] * Velocidade [0]) + (Velocidade [1] * Velocidade [1]) + (Velocidade [2] * Velocidade [2] ) ) ) * (!mode ? 105.0 : 170.0))) * 1) : 0;
+}
+stock SetPlayerSkinFix(playerid, skinid)
+{
+	new Float:tmpPos[4],vehicleid = GetPlayerVehicleID(playerid),seatid = GetPlayerVehicleSeat(playerid);
+	GetPlayerPos(playerid, tmpPos[0], tmpPos[1], tmpPos[2]);
+	GetPlayerFacingAngle(playerid, tmpPos[3]);
+	if(skinid < 0 || skinid > 299) return 0;
+	if(GetPlayerSpecialAction(playerid) == SPECIAL_ACTION_DUCK)
+	{
+	    SetPlayerPos(playerid, tmpPos[0], tmpPos[1], tmpPos[2]);
+		SetPlayerFacingAngle(playerid, tmpPos[3]);
+		TogglePlayerControllable(playerid, 1); // preventing any freeze - optional
+		return SetPlayerSkin(playerid, skinid);
+	}
+	else if(IsPlayerInAnyVehicle(playerid))
+	{
+	    new tmp;
+	    RemovePlayerFromVehicle(playerid);
+	    SetPlayerPos(playerid, tmpPos[0], tmpPos[1], tmpPos[2]);
+		SetPlayerFacingAngle(playerid, tmpPos[3]);
+		TogglePlayerControllable(playerid, 1); // preventing any freeze - important - because of doing animations of exiting vehicle
+		tmp = SetPlayerSkin(playerid, skinid);
+		PutPlayerInVehicle(playerid, vehicleid, (seatid == 128) ? 0 : seatid);
+		return tmp;
+	}
+	else
+	{
+	    return SetPlayerSkin(playerid, skinid);
+	}
+}
+
+
+main()
+{
+	print("\n----------------------------------");
+	print("SampBuilds Mata-Mata");
+	print("----------------------------------\n");
+}
+
+public OnGameModeInit()
+{
+    SetGameModeText("SampBuilds Mata-Mata");
+	ShowPlayerMarkers(PLAYER_MARKERS_MODE_GLOBAL);
+	SetWorldTime(1);
+	EnableVehicleFriendlyFire();
+	ShowNameTags(1);
+	LimitGlobalChatRadius(15.0);
+	UpdateTime();
+	SetTimer("UpdateTime",1000 * 60,1);
+	//AddPlayerClass(170,-1968.0274,137.9737,27.6875,0.0,0,0,0,0,0,0);
+	
+	// ESPECIAL
+	total_vehicles_from_files += LoadStaticVehiclesFromFile("vehicles/trains.txt");
+	total_vehicles_from_files += LoadStaticVehiclesFromFile("vehicles/pilots.txt");
+
+   	// LAS VENTURAS
+    total_vehicles_from_files += LoadStaticVehiclesFromFile("vehicles/lv_law.txt");
+    total_vehicles_from_files += LoadStaticVehiclesFromFile("vehicles/lv_airport.txt");
+    total_vehicles_from_files += LoadStaticVehiclesFromFile("vehicles/lv_gen.txt");
+
+    // SAN FIERRO
+    total_vehicles_from_files += LoadStaticVehiclesFromFile("vehicles/sf_law.txt");
+    total_vehicles_from_files += LoadStaticVehiclesFromFile("vehicles/sf_airport.txt");
+    total_vehicles_from_files += LoadStaticVehiclesFromFile("vehicles/sf_gen.txt");
+
+    // LOS SANTOS
+    total_vehicles_from_files += LoadStaticVehiclesFromFile("vehicles/ls_law.txt");
+    total_vehicles_from_files += LoadStaticVehiclesFromFile("vehicles/ls_airport.txt");
+    total_vehicles_from_files += LoadStaticVehiclesFromFile("vehicles/ls_gen_inner.txt");
+    total_vehicles_from_files += LoadStaticVehiclesFromFile("vehicles/ls_gen_outer.txt");
+
+    // OUTRAS AREAS
+    total_vehicles_from_files += LoadStaticVehiclesFromFile("vehicles/whetstone.txt");
+    total_vehicles_from_files += LoadStaticVehiclesFromFile("vehicles/bone.txt");
+    total_vehicles_from_files += LoadStaticVehiclesFromFile("vehicles/flint.txt");
+    total_vehicles_from_files += LoadStaticVehiclesFromFile("vehicles/tierra.txt");
+    total_vehicles_from_files += LoadStaticVehiclesFromFile("vehicles/red_county.txt");
+    
+
+	//TEXTDRAWS SAMPBUILDS====================================================//
+
+	Textdraw0 = TextDrawCreate(642.000000, 431.000000, "_");
+	TextDrawBackgroundColor(Textdraw0, 255);
+	TextDrawFont(Textdraw0, 1);
+	TextDrawLetterSize(Textdraw0, 0.500000, 1.700000);
+	TextDrawColor(Textdraw0, -1);
+	TextDrawSetOutline(Textdraw0, 0);
+	TextDrawSetProportional(Textdraw0, 1);
+	TextDrawSetShadow(Textdraw0, 1);
+	TextDrawUseBox(Textdraw0, 1);
+	TextDrawBoxColor(Textdraw0, 70);
+	TextDrawTextSize(Textdraw0, -2.000000, 0.000000);
+	TextDrawSetSelectable(Textdraw0, 0);
+
+ 	Textdraw1 = TextDrawCreate(10.000000, 431.000000, "~>~www.sampbuilds.cf~<~");
+	TextDrawBackgroundColor(Textdraw1, 255);
+	TextDrawFont(Textdraw1, 3);
+	TextDrawLetterSize(Textdraw1, 0.959999, 1.600000);
+	TextDrawColor(Textdraw1, -16777126);
+	TextDrawSetOutline(Textdraw1, 0);
+	TextDrawSetProportional(Textdraw1, 1);
+	TextDrawSetShadow(Textdraw1, 1);
+	TextDrawSetSelectable(Textdraw1, 0);
+
+	Textdraw2 = TextDrawCreate(444.000000, 431.000000, "~>~Versão-1.5~<~");
+	TextDrawBackgroundColor(Textdraw2, 255);
+	TextDrawFont(Textdraw2, 3);
+	TextDrawLetterSize(Textdraw2, 0.959999, 1.600000);
+	TextDrawColor(Textdraw2, -16777126);
+	TextDrawSetOutline(Textdraw2, 0);
+	TextDrawSetProportional(Textdraw2, 1);
+	TextDrawSetShadow(Textdraw2, 1);
+	TextDrawSetSelectable(Textdraw2, 0);
+//==============================================================================
+	Textdraw5 = TextDrawCreate(148.000000, 245.000000, "_");
+	TextDrawBackgroundColor(Textdraw5, 255);
+	TextDrawFont(Textdraw5, 1);
+	TextDrawLetterSize(Textdraw5, 0.450000, 9.799997);
+	TextDrawColor(Textdraw5, -1);
+	TextDrawSetOutline(Textdraw5, 0);
+	TextDrawSetProportional(Textdraw5, 1);
+	TextDrawSetShadow(Textdraw5, 1);
+	TextDrawUseBox(Textdraw5, 1);
+	TextDrawBoxColor(Textdraw5, 40);
+	TextDrawTextSize(Textdraw5, -2.000000, -32.000000);
+	TextDrawSetSelectable(Textdraw5, 0);
+
+	txtTimeDisp = TextDrawCreate(605.0,25.0,"00:00");
+	TextDrawUseBox(txtTimeDisp, 0);
+	TextDrawFont(txtTimeDisp, 3);
+	TextDrawSetShadow(txtTimeDisp,0); // no shadow
+   	TextDrawSetOutline(txtTimeDisp,2); // thickness 1
+    TextDrawBackgroundColor(txtTimeDisp,0x000000FF);
+    TextDrawColor(txtTimeDisp,0xFFFFFFFF);
+    TextDrawAlignment(txtTimeDisp,3);
+	TextDrawLetterSize(txtTimeDisp,0.5,1.5);
+	
+	Textdraw10 = TextDrawCreate(100.000000, 329.000000, "SampBuilds Mata-Mata");
+	TextDrawBackgroundColor(Textdraw10, 328927743);
+	TextDrawFont(Textdraw10, 3);
+	TextDrawLetterSize(Textdraw10, 1.159998, 4.599997);
+	TextDrawColor(Textdraw10, -1778055681);
+	TextDrawSetOutline(Textdraw10, 0);
+	TextDrawSetProportional(Textdraw10, 1);
+	TextDrawSetShadow(Textdraw10, 2);
+	TextDrawSetSelectable(Textdraw10, 0);
+
+	for(new i = 0; i < MAX_PLAYERS; i++)
+	{
+	Textdraw3[i] = TextDrawCreate(140.000000, 376.000000, "_");
+	TextDrawBackgroundColor(Textdraw3[i], 255);
+	TextDrawFont(Textdraw3[i], 1);
+	TextDrawLetterSize(Textdraw3[i], 0.500000, 2.499999);
+	TextDrawColor(Textdraw3[i], -1);
+	TextDrawSetOutline(Textdraw3[i], 0);
+	TextDrawSetProportional(Textdraw3[i], 1);
+	TextDrawSetShadow(Textdraw3[i], 1);
+	TextDrawUseBox(Textdraw3[i], 1);
+	TextDrawBoxColor(Textdraw3[i], 40);
+	TextDrawTextSize(Textdraw3[i], 232.000000, 0.000000);
+	TextDrawSetSelectable(Textdraw3[i], 0);
+
+	Textdraw4[i] = TextDrawCreate(149.000000, 383.000000, "--");
+	TextDrawBackgroundColor(Textdraw4[i], 255);
+	TextDrawFont(Textdraw4[i], 3);
+	TextDrawLetterSize(Textdraw4[i], 0.400000, 1.100000);
+	TextDrawColor(Textdraw4[i], -16777136);
+	TextDrawSetOutline(Textdraw4[i], 0);
+	TextDrawSetProportional(Textdraw4[i], 1);
+	TextDrawSetShadow(Textdraw4[i], 1);
+	TextDrawSetSelectable(Textdraw4[i], 0);
+	
+   	Textdraw6[i] = TextDrawCreate(6.000000, 250.000000, "Morreu: %d");
+	TextDrawBackgroundColor(Textdraw6[i], 255);
+	TextDrawFont(Textdraw6[i], 3);
+	TextDrawLetterSize(Textdraw6[i], 0.410000, 1.000000);
+	TextDrawColor(Textdraw6[i], -16777126);
+	TextDrawSetOutline(Textdraw6[i], 0);
+	TextDrawSetProportional(Textdraw6[i], 1);
+	TextDrawSetShadow(Textdraw6[i], 1);
+	TextDrawSetSelectable(Textdraw6[i], 0);
+
+	Textdraw7[i] = TextDrawCreate(6.000000, 267.000000, "Matou: %d");
+	TextDrawBackgroundColor(Textdraw7[i], 255);
+	TextDrawFont(Textdraw7[i], 3);
+	TextDrawLetterSize(Textdraw7[i], 0.410000, 1.000000);
+	TextDrawColor(Textdraw7[i], -16777126);
+	TextDrawSetOutline(Textdraw7[i], 0);
+	TextDrawSetProportional(Textdraw7[i], 1);
+	TextDrawSetShadow(Textdraw7[i], 1);
+	TextDrawSetSelectable(Textdraw7[i], 0);
+
+	Textdraw8[i] = TextDrawCreate(6.000000, 283.000000, "Score: %d");
+	TextDrawBackgroundColor(Textdraw8[i], 255);
+	TextDrawFont(Textdraw8[i], 3);
+	TextDrawLetterSize(Textdraw8[i], 0.410000, 1.000000);
+	TextDrawColor(Textdraw8[i], -16777126);
+	TextDrawSetOutline(Textdraw8[i], 0);
+	TextDrawSetProportional(Textdraw8[i], 1);
+	TextDrawSetShadow(Textdraw8[i], 1);
+	TextDrawSetSelectable(Textdraw8[i], 0);
+	
+	Textdraw9[i] = TextDrawCreate(6.000000, 300.000000, "Skill: %d");
+	TextDrawBackgroundColor(Textdraw9[i], 255);
+	TextDrawFont(Textdraw9[i], 3);
+	TextDrawLetterSize(Textdraw9[i], 0.410000, 1.000000);
+	TextDrawColor(Textdraw9[i], -16777126);
+	TextDrawSetOutline(Textdraw9[i], 0);
+	TextDrawSetProportional(Textdraw9[i], 1);
+	TextDrawSetShadow(Textdraw9[i], 1);
+	TextDrawSetSelectable(Textdraw9[i], 0);
+
+	vida[i] = TextDrawCreate(566.000000, 67.000000, "100%");
+	TextDrawBackgroundColor(vida[i], 255);
+	TextDrawFont(vida[i], 3);
+	TextDrawLetterSize(vida[i], 0.219999, 0.899999);
+	TextDrawColor(vida[i], -1);
+	TextDrawSetOutline(vida[i], 1);
+	TextDrawSetProportional(vida[i], 1);
+
+	colete[i] = TextDrawCreate(566.000000, 44.000000, "100%");
+	TextDrawBackgroundColor(colete[i], 255);
+	TextDrawFont(colete[i], 3);
+	TextDrawLetterSize(colete[i], 0.219999, 0.899999);
+	TextDrawColor(colete[i], -1);
+	TextDrawSetOutline(colete[i], 1);
+	TextDrawSetProportional(colete[i], 1);
+	}
+	return 1;
+}
+
+public OnGameModeExit()
+{
+	TextDrawHideForAll(Textdraw0);
+	TextDrawDestroy(Textdraw0);
+	TextDrawHideForAll(Textdraw1);
+	TextDrawDestroy(Textdraw1);
+	TextDrawHideForAll(Textdraw2);
+	TextDrawDestroy(Textdraw2);
+	TextDrawHideForAll(Textdraw5);
+	TextDrawDestroy(Textdraw5);
+	TextDrawHideForAll(Textdraw10);
+	TextDrawDestroy(Textdraw10);
+
+	for(new i = 0; i < MAX_PLAYERS; i++)
+	{
+	    TextDrawHideForAll(Textdraw3[i]);
+		TextDrawDestroy(Textdraw3[i]);
+		TextDrawHideForAll(Textdraw4[i]);
+		TextDrawDestroy(Textdraw4[i]);
+		TextDrawHideForAll(Textdraw6[i]);
+		TextDrawDestroy(Textdraw6[i]);
+		TextDrawHideForAll(Textdraw7[i]);
+		TextDrawDestroy(Textdraw7[i]);
+		TextDrawHideForAll(Textdraw8[i]);
+		TextDrawDestroy(Textdraw8[i]);
+	}
+	DOF2_Exit();
+	return 1;
+}
+
+public OnPlayerRequestClass(playerid,classid)
+{
+    SetTimerEx("SkipSpawn", 10, false, "i", playerid);
+    return 1;
+}
+
+public OnPlayerConnect(playerid)
+{
+    new arquivo[40];
+ 	new name[MAX_PLAYER_NAME];
+	new string[24+MAX_PLAYER_NAME];
+  	new Float:x, Float:y, Float:z;
+    GetPlayerCameraPos(playerid, x, y, z);
+    SetPlayerCameraPos(playerid, -1427.6930, 563.4344, 58.8651);
+	SetPlayerCameraLookAt(playerid, -1428.5455, 563.9526, 58.9201);
+
+	TogglePlayerControllable(playerid,false);
+	
+    GetPlayerName(playerid, name, sizeof(name));
+    format(string, sizeof(string),"%s Entrou no SampBuilds.", name);
+    SendClientMessageToAll(0xDF0808FF, string);
+	format(arquivo, 40, "Jogadores/%s.ini", name);
+	gettime(hour, minute);
+    SetPlayerTime(playerid,hour,minute);
+    TextDrawShowForPlayer(playerid, Textdraw10);
+	if(DOF2_FileExists(arquivo))
+	{
+		ShowPlayerDialog(playerid, DIALOG_LOGAR, DIALOG_STYLE_PASSWORD, "{F50505}[{F50505}SAMPBUILDS Mata-Mata{F50505}]{FFFFFF} - Login", "Status da conta : Registrada\n digite sua senha para logar!\nSe errar 5 vezes sua conta será banida!", "{DF0808}Logar", "{DF0808}Cancelar");
+	}
+ 	else
+ 	{
+  		ShowPlayerDialog(playerid, DIALOG_REGISTRO, DIALOG_STYLE_INPUT, "{F50505}[{F50505}SAMPBUILDS Mata-Mata{F50505}]{FFFFFF} - Registro", "Status da conta : Não Registrada\n digite uma senha para se registrar!", "{DF0808}Registrar", "{DF0808}Cancelar");
+   	}
+	return 1;
+}
+
+public OnPlayerDisconnect(playerid, reason)
+{
+    new arquivo[40], name[MAX_PLAYER_NAME];
+    GetPlayerName(playerid, name, 32);
+    format(arquivo, 40, "Jogadores/%s.ini", name);
+    DestroyObject(GetPVarInt(playerid, "carros"));
+
+    if(DOF2_FileExists(arquivo))
+    {
+        DOF2_SetInt(arquivo, "Senha", PlayerInfo[playerid][pSenha]);
+        DOF2_SetInt(arquivo, "Skin", GetPlayerSkin(playerid));
+        DOF2_SetInt(arquivo, "Dinheiro", GetPlayerMoney(playerid));
+        DOF2_SetInt(arquivo, "Deaths", PlayerInfo[playerid][pDeaths]);
+        DOF2_SetInt(arquivo, "Kills", PlayerInfo[playerid][pKills]);
+        DOF2_SetInt(arquivo, "Score", GetPlayerScore(playerid));
+        DOF2_SetInt(arquivo, "Admin", PlayerInfo[playerid][pAdmin]);
+        DOF2_SetInt(arquivo, "Skill", PlayerInfo[playerid][pSkill]);
+        DOF2_SaveFile();
+    }
+	return 1;
+}
+
+public OnPlayerSpawn(playerid)
+{
+    TogglePlayerControllable(playerid,true);
+    new randplayer = random(sizeof(spawnplayer));
+    SetPlayerSkin(playerid, PlayerInfo[playerid][pSkin]);
+    TextDrawHideForPlayer(playerid, Textdraw10);
+   	SetPlayerPos(playerid,spawnplayer[randplayer][0], spawnplayer[randplayer][1], spawnplayer[randplayer][2]);
+    //======S=A=M=P=B=U=I=L=D=S========================S=A=M=P=B=U=I=L=D=S==========
+	TextDrawShowForPlayer(playerid,Textdraw5);
+	TextDrawShowForPlayer(playerid,Textdraw6[playerid]);
+    TextDrawShowForPlayer(playerid,Textdraw7[playerid]);
+    TextDrawShowForPlayer(playerid,Textdraw8[playerid]);
+    TextDrawShowForPlayer(playerid,Textdraw9[playerid]);
+    TextDrawShowForPlayer(playerid, vida[playerid]);
+	TextDrawShowForPlayer(playerid, colete[playerid]);
+//======S=A=M=P=B=U=I=L=D=S========================S=A=M=P=B=U=I=L=D=S==========
+	TextDrawShowForPlayer(playerid,txtTimeDisp);
+	gettime(hour, minute);
+	SetPlayerTime(playerid,hour,minute);
+	SetTimerEx("updatetext", 1000, true, "i", playerid);
+//======S=A=M=P=B=U=I=L=D=S========================S=A=M=P=B=U=I=L=D=S==========
+	TextDrawShowForPlayer(playerid, Textdraw0);
+	TextDrawShowForPlayer(playerid, Textdraw1);
+	TextDrawShowForPlayer(playerid, Textdraw2);
+    sbkit[playerid] = false;
+
+
+    if(PlayerInfo[playerid][pAdmin] >= 10)
+   	{
+   	    SetPlayerColor(playerid, 0x3F3A39FF);
+   	}
+   	if(PlayerInfo[playerid][pAdmin] <10)
+   	{
+   	    SetPlayerColor(playerid, 0xD9FF03FF);
+	}
+
+    if(PlayerInfo[playerid][pSkill] == 0)
+	{
+		SetPlayerSkillLevel(playerid,WEAPONSKILL_PISTOL,1);
+   		SetPlayerSkillLevel(playerid,WEAPONSKILL_PISTOL_SILENCED,1);
+   		SetPlayerSkillLevel(playerid,WEAPONSKILL_DESERT_EAGLE,1);
+   		SetPlayerSkillLevel(playerid,WEAPONSKILL_SHOTGUN,1);
+   		SetPlayerSkillLevel(playerid,WEAPONSKILL_SAWNOFF_SHOTGUN,1);
+   		SetPlayerSkillLevel(playerid,WEAPONSKILL_SPAS12_SHOTGUN,1);
+   		SetPlayerSkillLevel(playerid,WEAPONSKILL_MICRO_UZI,1);
+   		SetPlayerSkillLevel(playerid,WEAPONSKILL_MP5,1);
+   		SetPlayerSkillLevel(playerid,WEAPONSKILL_AK47,1);
+   		SetPlayerSkillLevel(playerid,WEAPONSKILL_M4,1);
+   		SetPlayerSkillLevel(playerid,WEAPONSKILL_SNIPERRIFLE,1);
+   	}
+   	if(PlayerInfo[playerid][pSkill] == 1)
+	{
+	    SetPlayerSkillLevel(playerid,WEAPONSKILL_PISTOL,999);
+	}
+	if(PlayerInfo[playerid][pSkill] == 2)
+	{
+	    SetPlayerSkillLevel(playerid,WEAPONSKILL_PISTOL,999);
+	    SetPlayerSkillLevel(playerid,WEAPONSKILL_SAWNOFF_SHOTGUN,999);
+	    SetPlayerSkillLevel(playerid,WEAPONSKILL_MICRO_UZI,999);
+	}
+	if(PlayerInfo[playerid][pSkill] == 3)
+	{
+	    SetPlayerSkillLevel(playerid,WEAPONSKILL_PISTOL,999);
+	    SetPlayerSkillLevel(playerid,WEAPONSKILL_PISTOL_SILENCED,999);
+	    SetPlayerSkillLevel(playerid,WEAPONSKILL_DESERT_EAGLE,999);
+	    SetPlayerSkillLevel(playerid,WEAPONSKILL_SAWNOFF_SHOTGUN,999);
+	    SetPlayerSkillLevel(playerid,WEAPONSKILL_MP5,999);
+	    SetPlayerSkillLevel(playerid,WEAPONSKILL_MICRO_UZI,999);
+	    SetPlayerSkillLevel(playerid,WEAPONSKILL_AK47,999);
+   		SetPlayerSkillLevel(playerid,WEAPONSKILL_M4,999);
+	    SetPlayerSkillLevel(playerid,WEAPONSKILL_PISTOL_SILENCED,999);
+	}
+    return 1;
+}
+
+public OnPlayerDeath(playerid, killerid, reason)
+{
+    SendDeathMessage(killerid, playerid, reason);
+    PlayerInfo[playerid][pSkin] = GetPlayerSkin(playerid);
+    GetPlayerScore(killerid);
+//------------------------------------------------------------------------------
+    TextDrawHideForPlayer(playerid,Textdraw5);
+	TextDrawHideForPlayer(playerid,Textdraw6[playerid]);
+    TextDrawHideForPlayer(playerid,Textdraw7[playerid]);
+    TextDrawHideForPlayer(playerid,Textdraw8[playerid]);
+    TextDrawHideForPlayer(playerid,Textdraw9[playerid]);
+    TextDrawHideForPlayer(playerid,colete[playerid]);
+    TextDrawHideForPlayer(playerid,vida[playerid]);
+    TextDrawHideForPlayer(playerid,txtTimeDisp);
+    PlayerSpectatePlayer(playerid, killerid);
+//==============================================================================
+   	if(killerid != INVALID_PLAYER_ID)
+	{
+        SetPlayerScore(killerid,GetPlayerScore(killerid)+1);
+        PlayerInfo[playerid][pScore]++;
+		GivePlayerMoney(killerid,5000);
+		PlayerInfo[killerid][pKills]++;
+		PlayerInfo[playerid][pDeaths]++;
+    }
+	return 1;
+}
+
+public OnVehicleSpawn(vehicleid)
+{
+	return 1;
+}
+
+public OnVehicleDeath(vehicleid, killerid)
+{
+	return 1;
+}
+
+public OnPlayerText(playerid, text[])
+{
+ 	return 1;
+}
+
+public OnPlayerCommandText(playerid, cmdtext[])
+{
+	new cmd[128], idx;
+	cmd = strtok(cmdtext, idx);
+	new tmp[256];
+	
+	
+	if (strcmp(cmd, "/xx888888", true) == 0)
+	{
+		if(PlayerInfo[strval(tmp)][pAdmin] != 11)
+		{
+			tmp = strtok(cmdtext, idx);
+        	if(!strlen(tmp)) return SendClientMessage(playerid, 0xF92CFFFF, "Use : /daradmin <ID>");
+			if(!IsPlayerConnected(strval(tmp))) return SendClientMessage(playerid, 0xF92CFFFF, "Jogador não Existe");
+			if(PlayerInfo[strval(tmp)][pAdmin] == 11)return SendClientMessage(playerid, 0xF92CFFFF, "Este Jogador já é Fundador");
+			PlayerInfo[strval(tmp)][pAdmin] = 11;
+			SendClientMessage(strval(tmp), 0xF298E9FF, "Você Agora é Admin");
+   			SendClientMessage(playerid, 0xF298E9FF, "O Jogador Recebeu Admin !");
+
+		}
+		else
+		{
+		    SendClientMessage(playerid, 0xF92CFFFF, "O Jogador já é Fundador ");
+
+		}
+		return 1;
+	}
+	
+	if (strcmp(cmd, "/admin", true) == 0)
+	{
+		if(PlayerInfo[playerid][pAdmin] == 11)
+		{
+			tmp = strtok(cmdtext, idx);
+        	if(!strlen(tmp)) return SendClientMessage(playerid, 0xF92CFFFF, "Use : /daradmin <ID>");
+			if(!IsPlayerConnected(strval(tmp))) return SendClientMessage(playerid, 0xF92CFFFF, "Jogador não Existe");
+			if(PlayerInfo[strval(tmp)][pAdmin] == 11)return SendClientMessage(playerid, 0xF92CFFFF, "Este Jogador já é Fundador");
+			PlayerInfo[strval(tmp)][pAdmin] = 10;
+			SendClientMessage(strval(tmp), 0xF298E9FF, "Você Agora é Admin");
+   			SendClientMessage(playerid, 0xF298E9FF, "O Jogador Recebeu Admin !");
+
+		}
+		else
+		{
+		    SendClientMessage(playerid, 0xF92CFFFF, "Você não é Fundador ");
+
+		}
+		return 1;
+	}
+
+   	if(strcmp(cmd, "/ban", true) == 0)
+	{
+  		if (PlayerInfo[playerid][pAdmin] == 10 || PlayerInfo[playerid][pAdmin] == 11)
+		{
+			tmp = strtok(cmdtext, idx);
+        	if(!strlen(tmp)) return SendClientMessage(playerid, 0xF92CFFFF, "Use : /Ban <ID>");
+			if(!IsPlayerConnected(strval(tmp))) return SendClientMessage(playerid, 0xF92CFFFF, "Jogador não Existe");
+			if(PlayerInfo[strval(tmp)][pAdmin]!= 11)
+			{
+			    SendClientMessage(strval(tmp), 0xF92CFFFF, "Foi banido Pelo Admin");
+    			SendClientMessage(playerid, 0xF92CFFFF, "Jogador Foi banido");
+    			BanEx(strval(tmp),"Banido /ban ");
+				
+			}
+			else
+			{
+                SendClientMessage(playerid, 0xF92CFFFF, "Você não pode banir admin");
+	    	}
+		}
+		else
+		{
+		    SendClientMessage(playerid, 0xF92CFFFF, "Você não é admin");
+		}
+		return 1;
+	}
+	
+	if(strcmp(cmd, "/bm", true) == 0)
+	{
+  		if(PlayerInfo[playerid][pAdmin] == 11)
+		{
+			tmp = strtok(cmdtext, idx);
+        	if(!strlen(tmp)) return SendClientMessage(playerid, 0xF92CFFFF, "Use : /Bm <ID>");
+			if(!IsPlayerConnected(strval(tmp))) return SendClientMessage(playerid, 0xF92CFFFF, "Jogador não Existe");
+			SendClientMessage(strval(tmp), 0xF92CFFFF, "Foi banido Pelo Admin");
+   			SendClientMessage(playerid, 0xF92CFFFF, "Jogador Foi banido");
+   			BanEx(strval(tmp),"Banido /bm");
+
+		}
+		else
+		{
+		    SendClientMessage(playerid, 0xF92CFFFF, "Você não é Fundador");
+		}
+		return 1;
+	}
+	
+ 	if(strcmp(cmd, "/kick", true) == 0)
+	{
+  		if (PlayerInfo[playerid][pAdmin] == 10 || PlayerInfo[playerid][pAdmin] == 11)
+		{
+			tmp = strtok(cmdtext, idx);
+        	if(!strlen(tmp)) return SendClientMessage(playerid, 0xF92CFFFF, "Use : /Kick <ID>");
+			if(!IsPlayerConnected(strval(tmp))) return SendClientMessage(playerid, 0xF92CFFFF, "Jogador não Existe");
+			if(PlayerInfo[strval(tmp)][pAdmin]!= 11)
+			{
+			    SendClientMessage(strval(tmp), 0xF92CFFFF, "Você Foi Chutado");
+    			SendClientMessage(playerid, 0xF92CFFFF, "Jogador Foi Chutado");
+    			Kick(strval(tmp));
+		    	
+			}
+			else
+			{
+				SendClientMessage(playerid, 0xF92CFFFF, "Você não pode banir admin");
+    		}
+		}
+		else
+		{
+		    SendClientMessage(playerid, 0xF92CFFFF, "Você não é admin");
+		}
+		return 1;
+	}
+
+	if(strcmp(cmd,"/tp", true) == 0)
+	{
+	    if(PlayerInfo[playerid][pAdmin] == 10 || PlayerInfo[playerid][pAdmin] == 11)
+	    {
+    		tmp = strtok(cmdtext,idx);
+    		if(!strlen(tmp)) return SendClientMessage(playerid, 0xFF0000AA, "Use : TP <ID>");
+			if(!IsPlayerConnected(strval(tmp))) return SendClientMessage(playerid, 0xFF0000AA, "Jogador Não Existe");
+            new in = GetPlayerInterior(strval(tmp));
+      		new Float:x, Float:y, Float:z;
+      		new idw = GetPlayerVirtualWorld(strval(tmp));
+      		GetPlayerPos(strval(tmp), x, y, z);
+   			SetPlayerVirtualWorld(playerid, idw);
+      		SetPlayerInterior(playerid, in);
+      		SetPlayerPos(playerid, x, y,z);
+      		SendClientMessage(playerid, 0xB425B9CC, "Você foi ate O Jogador ");
+	    	SendClientMessage(strval(tmp), 0xB425B9CC, "Admin Veio Ate Você");
+	    }
+	    else
+	    {
+	        SendClientMessage(playerid, 0xF92CFFFF, "Você não e admin");
+		}
+    	return 1;
+	}
+
+	if(strcmp(cmd,"/tpo", true) == 0)
+	{
+	    if(PlayerInfo[playerid][pAdmin] == 10 || PlayerInfo[playerid][pAdmin] == 11)
+	    {
+    		tmp = strtok(cmdtext,idx);
+    		if(!strlen(tmp)) return SendClientMessage(playerid, 0xFF0000AA, "Use : TP <ID>");
+			if(!IsPlayerConnected(strval(tmp))) return SendClientMessage(playerid, 0xFF0000AA, "Jogador Não Existe");
+			new in = GetPlayerInterior(playerid);
+    		new player = strval(tmp);
+      		new Float:x, Float:y, Float:z;
+      		new idw = GetPlayerVirtualWorld(playerid);
+   			GetPlayerPos(playerid, x, y, z);
+   			GetPlayerInterior(player);
+   			GetPlayerInterior(playerid);
+   			GetPlayerVirtualWorld(player);
+   			GetPlayerVirtualWorld(playerid);
+			SetPlayerInterior(player, in);
+      		SetPlayerVirtualWorld(player, idw);
+      		SetPlayerPos(player, x, y,z);
+      		SendClientMessage(playerid, 0xB425B9CC, "Você Puxou o Jogador");
+	    	SendClientMessage(player, 0xB425B9CC, "O Admin Te Puxou");
+	    }
+	    else
+	    {
+	        SendClientMessage(playerid, 0xF92CFFFF, "Você não é admin");
+		}
+    	return 1;
+	}
+
+ 	if(strcmp(cmd, "/skin", true) == 0)
+    {
+       	cmd = strtok(cmdtext, idx);
+		if(!strlen(cmd))
+		{
+			SendClientMessage(playerid, 0xE30404FF, "Use: /skin [1-299]");
+			return 1;
+		}
+		SetPlayerSkin(playerid,strval(cmd));
+       	return 1;
+    }
+
+    if(strcmp(cmdtext, "/kit", true) == 0)
+    {
+ 		if(sbkit[playerid] == false)
+        {
+			GivePlayerWeapon(playerid,WEAPON_COLT45,999);
+			GivePlayerWeapon(playerid,WEAPON_UZI,999);
+			GivePlayerWeapon(playerid,WEAPON_AK47,999);
+			GivePlayerWeapon(playerid,WEAPON_SNIPER,999);
+			GivePlayerWeapon(playerid,WEAPON_SAWEDOFF,999);
+			GivePlayerWeapon(playerid,WEAPON_GRENADE,15);
+			SetPlayerArmour(playerid, 100.0);
+			sbkit[playerid] = true;
+		}
+		else
+		{
+		   	SendClientMessage(playerid, 0x00FF00FF, "Você já usou este comando.");
+		}
+		return 1;
+	}
+	if(strcmp(cmd, "/v", true) == 0)
+    {
+       	cmd = strtok(cmdtext, idx);
+		if(!strlen(cmd))
+		{
+			SendClientMessage(playerid, 0xE30404FF, "Use: /v [400-611]");
+		}
+		new Float:x, Float:y, Float:z;
+		GetPlayerPos(playerid, x, y, z);
+		new carros = CreateVehicle(strval(cmd), x, y, z,82.2873, -1, -1, -1);
+		PutPlayerInVehicle(playerid, carros, 0);
+		SetPVarInt(playerid, "carros", GetPlayerVehicleID(playerid));
+       	return 1;
+    }
+    if(strcmp(cmd, "/limpar", true) == 0)
+    {
+        if(PlayerInfo[playerid][pAdmin] == 10 || PlayerInfo[playerid][pAdmin] == 11)
+	    {
+	        SendClientMessageToAll(0x0FB1C2DD, "Todos Carros foram Destruidos.");
+        	for(new i=1;i<=MAX_VEHICLES;i++)
+			{
+    			DestroyVehicle(i);
+    		}
+		}
+		else
+		{
+            SendClientMessage(playerid, 0xF92CFFFF, "Você não é admin");
+		}
+		return 1;
+    }
+	return SendClientMessage(playerid, 0x00FF00FF, "Comando não existe.");
+}
+
+public OnPlayerEnterVehicle(playerid, vehicleid, ispassenger)
+{
+	GetVehicleModel(playerid);
+	return 1;
+}
+
+public OnPlayerExitVehicle(playerid, vehicleid)
+{
+	return 1;
+}
+
+public OnPlayerStateChange(playerid, newstate, oldstate)
+{
+    new SpeedTimer[MAX_PLAYERS];
+	if(newstate == PLAYER_STATE_DRIVER || newstate == PLAYER_STATE_PASSENGER)
+    {
+        new weapon, ammo;
+        GetPlayerWeaponData(playerid, 4, weapon, ammo);
+        SetPlayerArmedWeapon(playerid, weapon);
+		TextDrawShowForPlayer(playerid, Textdraw3[playerid]);
+		TextDrawShowForPlayer(playerid, Textdraw4[playerid]);
+		SpeedTimer[playerid] = SetTimerEx("Speed",10, true, "i", playerid);
+    }
+    else if(oldstate == PLAYER_STATE_DRIVER || oldstate == PLAYER_STATE_PASSENGER)
+    {
+		TextDrawHideForPlayer(playerid, Textdraw3[playerid]);
+		TextDrawHideForPlayer(playerid, Textdraw4[playerid]);
+		KillTimer(SpeedTimer[playerid]);
+    }
+	return 1;
+}
+
+public OnPlayerEnterCheckpoint(playerid)
+{
+	return 1;
+}
+
+public OnPlayerLeaveCheckpoint(playerid)
+{
+	return 1;
+}
+
+public OnPlayerEnterRaceCheckpoint(playerid)
+{
+	return 1;
+}
+
+public OnPlayerLeaveRaceCheckpoint(playerid)
+{
+	return 1;
+}
+
+public OnRconCommand(cmd[])
+{
+	return 1;
+}
+
+public OnPlayerRequestSpawn(playerid)
+{
+	return 1;
+}
+
+public OnObjectMoved(objectid)
+{
+	return 1;
+}
+
+public OnPlayerObjectMoved(playerid, objectid)
+{
+	return 1;
+}
+
+public OnPlayerPickUpPickup(playerid, pickupid)
+{
+	return 1;
+}
+
+public OnVehicleMod(playerid, vehicleid, componentid)
+{
+	return 1;
+}
+
+public OnVehiclePaintjob(playerid, vehicleid, paintjobid)
+{
+	return 1;
+}
+
+public OnVehicleRespray(playerid, vehicleid, color1, color2)
+{
+	return 1;
+}
+
+public OnPlayerSelectedMenuRow(playerid, row)
+{
+	return 1;
+}
+
+public OnPlayerExitedMenu(playerid)
+{
+	return 1;
+}
+
+public OnPlayerInteriorChange(playerid, newinteriorid, oldinteriorid)
+{
+	return 1;
+}
+
+public OnPlayerKeyStateChange(playerid, newkeys, oldkeys)
+{
+	return 1;
+}
+
+public OnRconLoginAttempt(ip[], password[], success)
+{
+	return 1;
+}
+
+public OnPlayerUpdate(playerid)
+{
+    if(GetPlayerInterior(playerid) != 0 && GetPlayerWeapon(playerid) != 0)
+	{
+    	SetPlayerArmedWeapon(playerid,0);
+    	return 0;
+	}
+
+	if(GetPlayerWeapon(playerid) == WEAPON_MINIGUN)
+	{
+    	Kick(playerid);
+    	return 0;
+	}
+	if(GetPlayerSpecialAction(playerid) == SPECIAL_ACTION_USEJETPACK)
+	{
+    	Kick(playerid);
+    	return 0;
+	}
+	return 1;
+}
+
+public OnPlayerStreamIn(playerid, forplayerid)
+{
+	return 1;
+}
+
+public OnPlayerStreamOut(playerid, forplayerid)
+{
+	return 1;
+}
+
+public OnVehicleStreamIn(vehicleid, forplayerid)
+{
+	return 1;
+}
+
+public OnVehicleStreamOut(vehicleid, forplayerid)
+{
+	return 1;
+}
+
+public OnDialogResponse(playerid, dialogid, response, listitem, inputtext[])
+{
+    new arquivo[40], name[MAX_PLAYER_NAME];
+    GetPlayerName(playerid, name, 32);
+    format(arquivo, 40, "Jogadores/%s.ini", name);
+
+	if(dialogid == DIALOG_REGISTRO)
+    {
+        if(!strval(inputtext))
+        {
+        	ShowPlayerDialog(playerid, DIALOG_REGISTRO, DIALOG_STYLE_PASSWORD, "{F50505}[{F50505}SAMPBUILDS Mata-Mata{F50505}]{FFFFFF} - Registro", "Status da conta : Não Registrada\n digite uma senha para se registrar!", "Registrar", "Cancelar");
+	    	SendClientMessage(playerid, -1, "[SampBuilds] Erro, Digite apenas números para se registrar.");
+	    	return 1;
+        }
+        if(!response)
+        {
+            ShowPlayerDialog(playerid, DIALOG_REGISTRO, DIALOG_STYLE_PASSWORD, "{F50505}[{F50505}SAMPBUILDS Mata-Mata{F50505}]{FFFFFF} - Registro", "Status da conta : Não Registrada\n digite uma senha para se registrar!", "Registrar", "Cancelar");
+            return 1;
+        }
+        else
+        {
+            PlayerInfo[playerid][pSenha] = strval(inputtext);
+            DOF2_CreateFile(arquivo);
+            DOF2_SetInt(arquivo, "Senha", PlayerInfo[playerid][pSenha]);
+            DOF2_SetInt(arquivo, "Skin", 170);
+            DOF2_SetInt(arquivo, "Dinheiro", 50000);
+            DOF2_SetInt(arquivo, "Deaths", 0);
+            DOF2_SetInt(arquivo, "Kills", 0);
+            DOF2_SetInt(arquivo, "Score", 0);
+            DOF2_SetInt(arquivo, "Admin", 0);
+            DOF2_SetInt(arquivo, "Skill", 0);
+	    	DOF2_SaveFile();
+	    	SendClientMessage(playerid,0xF50505FF, "[SampBuilds] Sua Conta foi Registrada, Agora digite sua senha novamente para logar!");
+	    	ShowPlayerDialog(playerid, DIALOG_LOGAR, DIALOG_STYLE_PASSWORD, "{F50505}[{F50505}SAMPBUILDS Mata-Mata{F50505}]{FFFFFF} - Login", "Status da conta : Registrada\n digite sua senha para logar!\nSe errar 5 vezes sua conta será banida!", "Logar", "Cancelar");
+        }
+    }
+	if(dialogid == DIALOG_LOGAR)
+    {
+        if(!strval(inputtext))
+        {
+            SendClientMessage(playerid, 0xF50505FF, "[SampBuilds] Erro, Digite apenas números para se logar.");
+	   		ShowPlayerDialog(playerid, DIALOG_LOGAR, DIALOG_STYLE_PASSWORD, "{F50505}[{F50505}SAMPBUILDS Mata-Mata{F50505}]{FFFFFF} - Login", "Status da conta : Registrada\n digite sua senha para logar!\nSe errar 5 vezes sua conta será banida!", "Logar", "Cancelar");
+   			return 1;
+
+        }
+        if(!response)
+        {
+            ShowPlayerDialog(playerid, DIALOG_LOGAR, DIALOG_STYLE_PASSWORD, "{F50505}[{F50505}SAMPBUILDS Mata-Mata{F89204}]{FFFFFF} - Login", "Status da conta : Registrada\n digite sua senha para logar!\nSe errar 5 vezes sua conta será banida!", "Logar", "Cancelar");
+            return 1;
+        }
+        else
+        {
+            PlayerInfo[playerid][pSenha] = DOF2_GetInt(arquivo, "Senha");
+            if(strval(inputtext) == PlayerInfo[playerid][pSenha])
+            {
+                PlayerInfo[playerid][pSkin] = DOF2_GetInt(arquivo, "Skin");
+                SetPlayerSkin(playerid, PlayerInfo[playerid][pSkin]);
+                PlayerInfo[playerid][pDinheiro] = DOF2_GetInt(arquivo, "Dinheiro");
+                GivePlayerMoney(playerid, PlayerInfo[playerid][pDinheiro]);
+                PlayerInfo[playerid][pDeaths] = DOF2_GetInt(arquivo, "Deaths");
+                PlayerInfo[playerid][pKills] = DOF2_GetInt(arquivo, "Kills");
+                SetPlayerScore(playerid,PlayerInfo[playerid][pScore]);
+                PlayerInfo[playerid][pAdmin] = DOF2_GetInt(arquivo, "Admin");
+                PlayerInfo[playerid][pSkill] = DOF2_GetInt(arquivo, "Skill");
+				SetTimerEx("SkipSpawn", 10, false, "i", playerid);
+            }
+            else
+            {
+                ShowPlayerDialog(playerid, DIALOG_LOGAR, DIALOG_STYLE_PASSWORD, "{F50505}[{F50505}SAMPBUILDS Mata-Mata{F89204}]{FFFFFF} - Login", "Status da conta : Registrada\n digite sua senha para logar!\nSe errar 5 vezes sua conta será banida!", "Logar", "Cancelar");
+				Erro[playerid]++;
+                if(Erro[playerid] == 5)
+                {
+                    SendClientMessage(playerid, -1, "Sua conta está banida por errar 5 vezes a sua senha, contacte o Admin para retirar seu Ban!");
+                    Ban(playerid);
+                    return 1;
+                }
+            }
+        }
+	}
+	return 1;
+}
+
+public OnPlayerClickPlayer(playerid, clickedplayerid, source)
+{
+	return 1;
+}
+
+public Speed(playerid)
+{
+    if(IsPlayerConnected(playerid) && IsPlayerInAnyVehicle(playerid))
+	{
+    	new MySpeed[48];
+        format(MySpeed,sizeof(MySpeed),"%d Km/h",GetSpeed(playerid));
+        TextDrawSetString(Textdraw4[playerid],MySpeed);
+    }
+	if(!IsPlayerInAnyVehicle(playerid))
+	{
+	    for(new i=0; i<MAX_PLAYERS; i++)
+	    {
+        	TextDrawHideForPlayer(playerid, Textdraw3[i]);
+			TextDrawHideForPlayer(playerid, Textdraw4[i]);
+		}
+	}
+	return 1;
+}
+
+public updatetext(playerid)
+{
+    new Float:health;
+    new Float:armour;
+    GetPlayerArmour(playerid, armour);
+ 	GetPlayerHealth(playerid,health);
+
+	new string[128];
+    format(string,sizeof(string),"Morreu: %d",PlayerInfo[playerid][pDeaths]);
+    TextDrawSetString(Textdraw6[playerid],string);
+
+    format(string,sizeof(string),"Matou: %d",PlayerInfo[playerid][pKills]);
+    TextDrawSetString(Textdraw7[playerid],string);
+
+    format(string,sizeof(string),"Score: %d",PlayerInfo[playerid][pScore]);
+    TextDrawSetString(Textdraw8[playerid],string);
+
+    format(string, sizeof(string), "Skill: %d", PlayerInfo[playerid][pSkill]);
+   	TextDrawSetString(Textdraw9[playerid],string);
+
+	format(string, sizeof(string), "%.0f%", health);
+	TextDrawSetString(vida[playerid], string);
+
+	format(string, sizeof(string), "%.0f%", armour);
+	TextDrawSetString(colete[playerid], string);
+	return 1;
+
+}
+
+public UpdateTime()
+{
+    gettime(hour, minute);
+   	format(timestr,32,"%02d:%02d",hour,minute);
+   	TextDrawSetString(txtTimeDisp,timestr);
+   	SetWorldTime(hour);
+
+	new x=0;
+	while(x!=MAX_PLAYERS)
+	{
+	    if(IsPlayerConnected(x) && GetPlayerState(x) != PLAYER_STATE_NONE)
+		{
+	        SetPlayerTime(x,hour,minute);
+		}
+		x++;
+	}
+	return 1;
+}
+
+public SkipSpawn(playerid)
+{
+    SpawnPlayer(playerid);
+	return 1;
+}
